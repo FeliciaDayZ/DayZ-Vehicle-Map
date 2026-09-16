@@ -28,6 +28,16 @@ vehicle spawn data in one responsive desktop interface.
 - Render paved and dirt roads as scalable vector lines while zooming.
 - Use no Internet connection, registry settings, or external runtime.
 
+## Screenshots
+
+### Livonia
+
+![DayZ Vehicle Map showing Livonia](docs/images/livonia-map.png)
+
+### Chernarus
+
+![DayZ Vehicle Map showing Chernarus](docs/images/chernarus-map.png)
+
 ## Using the program
 
 Keep `DayZVehicleMap.exe` beside the `data` directory, then run the executable.
