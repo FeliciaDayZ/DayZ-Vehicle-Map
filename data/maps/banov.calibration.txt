@@ -1,0 +1,4 @@
+Image: banov.png (2048 x 2048)
+World extent: X 0..15360 m, Z 0..15360 m (world config center 7680,7680)
+Orientation: north-up; mapCoverage=1.0
+Transform: image_x=x/15360*2048; image_y=(1-z/15360)*2048

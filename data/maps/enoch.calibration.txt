@@ -1,0 +1,11 @@
+world=enoch
+x_min=0
+x_max=12800
+z_min=0
+z_max=12800
+pixel_left=0
+pixel_top=0
+pixel_right=4096
+pixel_bottom=4096
+image_x=east
+image_y=south

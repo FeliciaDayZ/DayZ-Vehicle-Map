@@ -1,0 +1,3 @@
+World extent: X 0..15360 m, Z 0..15360 m
+Orientation: north-up; image X increases with world X, image Y decreases with world Z
+Transform: image_x=x/15360*2048; image_y=(1-z/15360)*2048

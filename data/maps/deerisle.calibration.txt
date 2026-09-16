@@ -1,0 +1,4 @@
+Image: deerisle.png (2048 x 2048)
+World extent: X 0..16384 m, Z 0..16384 m (world config center 8192,8192)
+Orientation: north-up; mapCoverage=1.0
+Transform: image_x=x/16384*2048; image_y=(1-z/16384)*2048

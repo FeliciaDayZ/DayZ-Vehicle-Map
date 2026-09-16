@@ -1,0 +1,8 @@
+build/
+checked_state.txt
+self_test_report.txt
+ui_smoke_report.txt
+ui_smoke.bmp
+ui_smoke_livonia.bmp
+*.new.exe
+*.res.o

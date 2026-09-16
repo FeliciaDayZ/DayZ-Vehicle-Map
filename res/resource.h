@@ -1,0 +1,6 @@
+#ifndef DAYZ_VEHICLE_MAP_RESOURCE_H
+#define DAYZ_VEHICLE_MAP_RESOURCE_H
+
+#define IDI_APP_ICON 101
+
+#endif

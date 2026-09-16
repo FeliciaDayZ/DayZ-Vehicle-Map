@@ -1,0 +1,4 @@
+Image: bitterroot.png (2048 x 2048)
+World extent: X 0..12288 m, Z 0..12288 m (world config center 6144,6144)
+Orientation: north-up; mapCoverage=1.0
+Transform: image_x=x/12288*2048; image_y=(1-z/12288)*2048
