@@ -5,6 +5,8 @@ vehicle spawn locations across several DayZ maps. It runs completely offline
 and combines satellite map images, vector road overlays, and map-specific
 vehicle spawn data in one responsive desktop interface.
 
+See [Patch notes](CHANGELOG.md) for recent updates.
+
 ## Supported maps
 
 - Chernarus
@@ -26,6 +28,7 @@ vehicle spawn data in one responsive desktop interface.
 - Preserve checked, green, and red marker states between runs.
 - Keep marker state isolated by map, vehicle type, and spawn coordinates.
 - Render paved and dirt roads as scalable vector lines while zooming.
+- Limit map rendering to at most 25 FPS, with no continuous redraws while idle.
 - Use no Internet connection, registry settings, or external runtime.
 
 ## Screenshots
@@ -53,6 +56,12 @@ Keep `DayZVehicleMap.exe` beside the `data` directory, then run the executable.
 
 The application writes personal marker state to `checked_state.txt` beside the
 executable. That file is optional and is created automatically when needed.
+
+The 25 FPS limit is always enabled, including during panning, zooming, and
+resizing. The app combines rapid input into the next frame, reuses the last
+frame for unchanged window repaints, and stops map rendering while minimized.
+Expensive frames can reduce the frame rate below 25 FPS; the app leaves at least
+40 ms of idle time between map renders to reduce CPU contention while playing.
 
 ## Vehicle spawn counts
 
@@ -83,7 +92,7 @@ build.bat
 The resulting GUI executable is written to the project root as
 `DayZVehicleMap.exe`.
 
-To rebuild and run the native model, persistence, and GUI smoke tests:
+To rebuild and run the native model, persistence, GUI smoke, and frame pacing tests:
 
 ```bat
 test.bat

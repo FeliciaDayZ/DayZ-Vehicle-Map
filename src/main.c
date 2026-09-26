@@ -31,9 +31,11 @@
 #define ID_TYPE_RESTORE_BASE 300
 
 #define ID_STATUS_UPDATE_TIMER 1u
-#define STATUS_UPDATE_INTERVAL_MS 33u
+#define STATUS_UPDATE_INTERVAL_MS 40u
 #define ID_ZOOM_QUALITY_TIMER 2u
 #define ZOOM_SETTLE_INTERVAL_MS 120u
+#define ID_VIEWPORT_FRAME_TIMER 3u
+#define VIEWPORT_FRAME_INTERVAL_MS 40u
 
 typedef struct App {
     HINSTANCE instance;
@@ -74,6 +76,11 @@ typedef struct App {
     HGDIOBJ viewport_buffer_old_bitmap;
     int viewport_buffer_width;
     int viewport_buffer_height;
+    BOOL viewport_buffer_valid;
+    BOOL viewport_dirty;
+    BOOL viewport_frame_pending;
+    LARGE_INTEGER viewport_clock_frequency;
+    LARGE_INTEGER viewport_frame_finished;
 } App;
 
 static LRESULT CALLBACK main_window_proc(HWND window, UINT message,
@@ -410,6 +417,51 @@ static void destroy_viewport_buffer(App *app)
     app->viewport_buffer_old_bitmap = NULL;
     app->viewport_buffer_width = 0;
     app->viewport_buffer_height = 0;
+    app->viewport_buffer_valid = FALSE;
+}
+
+static UINT viewport_frame_delay(const App *app)
+{
+    LARGE_INTEGER now;
+    double remaining_ms;
+    if (!app->viewport_frame_finished.QuadPart) return 0u;
+    QueryPerformanceCounter(&now);
+    remaining_ms = VIEWPORT_FRAME_INTERVAL_MS -
+        (double)(now.QuadPart - app->viewport_frame_finished.QuadPart) * 1000.0 /
+        (double)app->viewport_clock_frequency.QuadPart;
+    return remaining_ms > 0.0 ? (UINT)ceil(remaining_ms) : 0u;
+}
+
+static void cancel_viewport_frame(App *app)
+{
+    if (app->viewport_frame_pending)
+        KillTimer(app->viewport, ID_VIEWPORT_FRAME_TIMER);
+    app->viewport_frame_pending = FALSE;
+}
+
+static void schedule_viewport_frame(App *app)
+{
+    UINT delay;
+    if (!app || !app->viewport) return;
+    if (!IsWindowVisible(app->viewport) || IsIconic(app->main_window)) {
+        cancel_viewport_frame(app);
+        return;
+    }
+    if (!app->viewport_dirty || app->viewport_frame_pending) return;
+    delay = viewport_frame_delay(app);
+    if (delay == 0u) {
+        InvalidateRect(app->viewport, NULL, FALSE);
+    } else {
+        app->viewport_frame_pending = SetTimer(app->viewport,
+            ID_VIEWPORT_FRAME_TIMER, delay, NULL) != 0;
+    }
+}
+
+static void request_viewport_frame(App *app)
+{
+    if (!app) return;
+    app->viewport_dirty = TRUE;
+    schedule_viewport_frame(app);
 }
 
 static BOOL ensure_viewport_buffer(App *app, HDC target, int width, int height)
@@ -443,48 +495,78 @@ static BOOL ensure_viewport_buffer(App *app, HDC target, int width, int height)
     return TRUE;
 }
 
+static void draw_viewport_content(App *app, HDC target, const RECT *client)
+{
+    dvm_map_view_draw(&app->views[app->active_map], target,
+                      client, app->dragging || app->zooming);
+    draw_markers(app, target, client);
+    if (!app->marker_image) {
+        RECT notice = *client;
+        HBRUSH notice_brush = CreateSolidBrush(RGB(74, 60, 18));
+        HGDIOBJ old_font = NULL;
+        notice.top += scaled(app, 14);
+        notice.left += scaled(app, 14);
+        notice.right = notice.left + scaled(app, 430);
+        notice.bottom = notice.top + scaled(app, 58);
+        if (notice_brush) {
+            FillRect(target, &notice, notice_brush);
+            DeleteObject(notice_brush);
+        }
+        SetBkMode(target, TRANSPARENT);
+        SetTextColor(target, RGB(255, 226, 116));
+        if (app->ui_font)
+            old_font = SelectObject(target, app->ui_font);
+        InflateRect(&notice, -scaled(app, 8), -scaled(app, 6));
+        DrawTextW(target,
+                  L"Required screenshot-derived marker asset is missing.\n"
+                  L"Marker checking is disabled; map controls remain available.",
+                  -1, &notice, DT_LEFT | DT_WORDBREAK | DT_NOPREFIX);
+        if (old_font) SelectObject(target, old_font);
+    }
+}
+
 static void paint_viewport(App *app, HWND window)
 {
     PAINTSTRUCT paint;
     RECT client;
-    HDC target;
-    target = BeginPaint(window, &paint);
+    HDC target = BeginPaint(window, &paint);
+    BOOL drew_directly = FALSE;
     GetClientRect(window, &client);
-    if (ensure_viewport_buffer(app, target, client.right, client.bottom)) {
-        dvm_map_view_draw(&app->views[app->active_map], app->viewport_buffer_dc,
-                          &client, app->dragging || app->zooming);
-        draw_markers(app, app->viewport_buffer_dc, &client);
-        if (!app->marker_image) {
-            RECT notice = client;
-            HBRUSH notice_brush = CreateSolidBrush(RGB(74, 60, 18));
-            HGDIOBJ old_font = NULL;
-            notice.top += scaled(app, 14);
-            notice.left += scaled(app, 14);
-            notice.right = notice.left + scaled(app, 430);
-            notice.bottom = notice.top + scaled(app, 58);
-            if (notice_brush) {
-                FillRect(app->viewport_buffer_dc, &notice, notice_brush);
-                DeleteObject(notice_brush);
-            }
-            SetBkMode(app->viewport_buffer_dc, TRANSPARENT);
-            SetTextColor(app->viewport_buffer_dc, RGB(255, 226, 116));
-            if (app->ui_font)
-                old_font = SelectObject(app->viewport_buffer_dc, app->ui_font);
-            InflateRect(&notice, -scaled(app, 8), -scaled(app, 6));
-            DrawTextW(app->viewport_buffer_dc,
-                      L"Required screenshot-derived marker asset is missing.\n"
-                      L"Marker checking is disabled; map controls remain available.",
-                      -1, &notice, DT_LEFT | DT_WORDBREAK | DT_NOPREFIX);
-            if (old_font) SelectObject(app->viewport_buffer_dc, old_font);
+    if (!app->viewport_buffer_valid ||
+        app->viewport_buffer_width != client.right ||
+        app->viewport_buffer_height != client.bottom)
+        app->viewport_dirty = TRUE;
+
+    /* Every paint path observes the cap, including forced paints and resizing.
+       Keep the last frame until the latest input can be rendered together. */
+    if (app->viewport_dirty && client.right > 0 && client.bottom > 0 &&
+        IsWindowVisible(window) && !IsIconic(app->main_window) &&
+        viewport_frame_delay(app) == 0u) {
+        cancel_viewport_frame(app);
+        if (ensure_viewport_buffer(app, target, client.right, client.bottom)) {
+            draw_viewport_content(app, app->viewport_buffer_dc, &client);
+            app->viewport_buffer_valid = TRUE;
+        } else {
+            draw_viewport_content(app, target, &client);
+            drew_directly = TRUE;
         }
-        BitBlt(target, 0, 0, client.right, client.bottom,
-               app->viewport_buffer_dc, 0, 0, SRCCOPY);
-    } else {
-        dvm_map_view_draw(&app->views[app->active_map], target, &client,
-                          app->dragging || app->zooming);
-        draw_markers(app, target, &client);
+        app->viewport_dirty = FALSE;
+        /* Leave CPU time between frames even if a frame itself is expensive. */
+        QueryPerformanceCounter(&app->viewport_frame_finished);
+    }
+    if (!drew_directly) {
+        if (!app->viewport_buffer_valid ||
+            app->viewport_buffer_width < client.right ||
+            app->viewport_buffer_height < client.bottom)
+            FillRect(target, &client, (HBRUSH)GetStockObject(BLACK_BRUSH));
+        if (app->viewport_buffer_valid)
+            BitBlt(target, 0, 0,
+                   min(client.right, app->viewport_buffer_width),
+                   min(client.bottom, app->viewport_buffer_height),
+                   app->viewport_buffer_dc, 0, 0, SRCCOPY);
     }
     EndPaint(window, &paint);
+    schedule_viewport_frame(app);
 }
 
 static void update_status_label(App *app)
@@ -684,7 +766,7 @@ static void switch_map(App *app, int map_index)
     app->active_map = map_index;
     app->cursor_world_valid = FALSE;
     update_controls(app);
-    InvalidateRect(app->viewport, NULL, FALSE);
+    request_viewport_frame(app);
 }
 
 static void handle_command(App *app, int control_id, int notification)
@@ -700,13 +782,13 @@ static void handle_command(App *app, int control_id, int notification)
         dvm_restore_all(&app->datasets[app->active_map]);
         save_state_or_warn(app);
         update_controls(app);
-        InvalidateRect(app->viewport, NULL, FALSE);
+        request_viewport_frame(app);
         return;
     }
     if (control_id == ID_FIT_MAP && notification == BN_CLICKED) {
         dvm_map_view_reset(&app->views[app->active_map]);
         update_controls(app);
-        InvalidateRect(app->viewport, NULL, FALSE);
+        request_viewport_frame(app);
         return;
     }
     type_index = control_id - ID_TYPE_CHECK_BASE;
@@ -715,7 +797,7 @@ static void handle_command(App *app, int control_id, int notification)
         app->datasets[app->active_map].type_visible[type_index] =
             SendMessageW(app->type_checks[type_index], BM_GETCHECK, 0, 0) == BST_CHECKED;
         update_controls(app);
-        InvalidateRect(app->viewport, NULL, FALSE);
+        request_viewport_frame(app);
         return;
     }
     type_index = control_id - ID_TYPE_RESTORE_BASE;
@@ -724,7 +806,7 @@ static void handle_command(App *app, int control_id, int notification)
         dvm_restore_type(&app->datasets[app->active_map], type_index);
         save_state_or_warn(app);
         update_controls(app);
-        InvalidateRect(app->viewport, NULL, FALSE);
+        request_viewport_frame(app);
     }
 }
 
@@ -745,7 +827,22 @@ static LRESULT CALLBACK main_window_proc(HWND window, UINT message,
         update_controls(app);
         return 0;
     case WM_SIZE:
-        if (app) layout_controls(app, LOWORD(l_param), HIWORD(l_param));
+        if (app) {
+            if (w_param == SIZE_MINIMIZED) {
+                cancel_viewport_frame(app);
+                KillTimer(app->viewport, ID_ZOOM_QUALITY_TIMER);
+                app->zooming = FALSE;
+            } else {
+                layout_controls(app, LOWORD(l_param), HIWORD(l_param));
+                request_viewport_frame(app);
+            }
+        }
+        return 0;
+    case WM_SHOWWINDOW:
+        if (app && app->viewport) {
+            if (w_param) request_viewport_frame(app);
+            else cancel_viewport_frame(app);
+        }
         return 0;
     case WM_COMMAND:
         if (app) handle_command(app, LOWORD(w_param), HIWORD(w_param));
@@ -772,6 +869,7 @@ static LRESULT CALLBACK main_window_proc(HWND window, UINT message,
                 GetClientRect(window, &client);
                 layout_controls(app, client.right, client.bottom);
             }
+            request_viewport_frame(app);
         }
         return 0;
     case WM_GETMINMAXINFO:
@@ -835,7 +933,7 @@ static void change_marker_color_at(App *app, int x, int y,
     select_marker_color(spawn, selected_color);
     save_state_or_warn(app);
     update_controls(app);
-    InvalidateRect(app->viewport, NULL, FALSE);
+    request_viewport_frame(app);
 }
 
 static LRESULT CALLBACK viewport_proc(HWND window, UINT message,
@@ -846,6 +944,11 @@ static LRESULT CALLBACK viewport_proc(HWND window, UINT message,
     case WM_NCCREATE:
         app = (App *)((CREATESTRUCTW *)l_param)->lpCreateParams;
         SetWindowLongPtrW(window, GWLP_USERDATA, (LONG_PTR)app);
+        if (app) {
+            app->viewport = window;
+            app->viewport_dirty = TRUE;
+            QueryPerformanceFrequency(&app->viewport_clock_frequency);
+        }
         return DefWindowProcW(window, message, w_param, l_param);
     case WM_SIZE:
         if (app) {
@@ -854,8 +957,15 @@ static LRESULT CALLBACK viewport_proc(HWND window, UINT message,
                 dvm_map_view_resize(&app->views[map_index],
                                     LOWORD(l_param), HIWORD(l_param));
             schedule_status_update(app);
+            request_viewport_frame(app);
         }
         return 0;
+    case WM_SHOWWINDOW:
+        if (app) {
+            if (w_param) request_viewport_frame(app);
+            else cancel_viewport_frame(app);
+        }
+        break;
     case WM_PAINT:
         if (app) paint_viewport(app, window);
         else {
@@ -874,16 +984,22 @@ static LRESULT CALLBACK viewport_proc(HWND window, UINT message,
             dvm_map_view_zoom_at(&app->views[app->active_map], pow(1.22, steps),
                                  (double)point.x, (double)point.y);
             app->zooming = TRUE;
-            SetTimer(window, ID_ZOOM_QUALITY_TIMER, ZOOM_SETTLE_INTERVAL_MS, NULL);
+            if (!SetTimer(window, ID_ZOOM_QUALITY_TIMER, ZOOM_SETTLE_INTERVAL_MS, NULL))
+                app->zooming = FALSE;
             update_cursor_world(app, point.x, point.y);
-            InvalidateRect(window, NULL, FALSE);
+            request_viewport_frame(app);
         }
         return 0;
     case WM_TIMER:
+        if (app && w_param == ID_VIEWPORT_FRAME_TIMER) {
+            cancel_viewport_frame(app);
+            schedule_viewport_frame(app);
+            return 0;
+        }
         if (app && w_param == ID_ZOOM_QUALITY_TIMER) {
             KillTimer(window, ID_ZOOM_QUALITY_TIMER);
             app->zooming = FALSE;
-            InvalidateRect(window, NULL, FALSE);
+            request_viewport_frame(app);
             return 0;
         }
         break;
@@ -923,7 +1039,7 @@ static LRESULT CALLBACK viewport_proc(HWND window, UINT message,
                                      (double)(y - app->drag_last.y));
                     app->drag_last.x = x;
                     app->drag_last.y = y;
-                    InvalidateRect(window, NULL, FALSE);
+                    request_viewport_frame(app);
                 }
             }
         }
@@ -937,14 +1053,14 @@ static LRESULT CALLBACK viewport_proc(HWND window, UINT message,
             app->dragging = FALSE;
             if (GetCapture() == window) ReleaseCapture();
             if (was_dragging) {
-                InvalidateRect(window, NULL, FALSE);
+                request_viewport_frame(app);
             } else if (app->marker_image) {
                 size_t hit = find_marker_at(app, x, y, marker_screen_size(app));
                 if (hit != SIZE_MAX) {
                     app->datasets[app->active_map].items[hit].hidden = TRUE;
                     save_state_or_warn(app);
                     update_controls(app);
-                    InvalidateRect(window, NULL, FALSE);
+                    request_viewport_frame(app);
                 }
             }
         }
@@ -972,7 +1088,7 @@ static LRESULT CALLBACK viewport_proc(HWND window, UINT message,
             BOOL was_dragging = app->dragging;
             app->mouse_down = FALSE;
             app->dragging = FALSE;
-            if (was_dragging) InvalidateRect(window, NULL, FALSE);
+            if (was_dragging) request_viewport_frame(app);
         }
         return 0;
     case WM_MOUSELEAVE:
@@ -999,10 +1115,16 @@ static LRESULT CALLBACK viewport_proc(HWND window, UINT message,
         if (app && w_param == VK_HOME) {
             dvm_map_view_reset(&app->views[app->active_map]);
             update_controls(app);
-            InvalidateRect(window, NULL, FALSE);
+            request_viewport_frame(app);
             return 0;
         }
         break;
+    case WM_DESTROY:
+        if (app) {
+            cancel_viewport_frame(app);
+            KillTimer(window, ID_ZOOM_QUALITY_TIMER);
+        }
+        return 0;
     default:
         break;
     }

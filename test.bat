@@ -25,5 +25,15 @@ if errorlevel 1 (
     exit /b 1
 )
 
+echo Compiling frame pacing harness...
+"C:\winprog\C\bin\gcc.exe" -std=c17 -O2 -Wall -Wextra -Wpedantic -Wformat=2 -Wstrict-prototypes ^
+  -DUNICODE -D_UNICODE tools\frame_pacing_test.c src\util.c src\app_data.c src\map_view.c src\state.c ^
+  -o build\frame_pacing_test.exe -lgdiplus -lcomctl32 -lgdi32 -luser32 -lkernel32
+if errorlevel 1 exit /b 1
+
+echo Running frame pacing harness...
+build\frame_pacing_test.exe
+if errorlevel 1 exit /b 1
+
 echo All tests passed. See self_test_report.txt and ui_smoke_report.txt.
 exit /b 0
