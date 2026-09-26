@@ -12,9 +12,3 @@
 - Combined rapid input into the next scheduled frame and reused the previous
   frame for unchanged Windows repaint requests to reduce CPU contention while
   playing DayZ.
-
-### Testing
-
-- Added automated frame-pacing coverage for rapid pan/zoom input, resizing,
-  idle behavior, minimize/restore, and hidden-window behavior.
-- Updated the GUI smoke test to account for capped frame delivery.

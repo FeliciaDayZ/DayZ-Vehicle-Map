@@ -82,7 +82,6 @@ static BOOL marker_region_has_color(HWND viewport, int center_x, int center_y,
     HDC dc;
     int matching = 0;
     int y;
-    /* Visual changes are delivered on the next capped frame. */
     Sleep(60);
     RedrawWindow(viewport, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
     dc = GetDC(viewport);

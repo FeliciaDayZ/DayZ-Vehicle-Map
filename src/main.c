@@ -537,8 +537,6 @@ static void paint_viewport(App *app, HWND window)
         app->viewport_buffer_height != client.bottom)
         app->viewport_dirty = TRUE;
 
-    /* Every paint path observes the cap, including forced paints and resizing.
-       Keep the last frame until the latest input can be rendered together. */
     if (app->viewport_dirty && client.right > 0 && client.bottom > 0 &&
         IsWindowVisible(window) && !IsIconic(app->main_window) &&
         viewport_frame_delay(app) == 0u) {
@@ -551,7 +549,6 @@ static void paint_viewport(App *app, HWND window)
             drew_directly = TRUE;
         }
         app->viewport_dirty = FALSE;
-        /* Leave CPU time between frames even if a frame itself is expensive. */
         QueryPerformanceCounter(&app->viewport_frame_finished);
     }
     if (!drew_directly) {

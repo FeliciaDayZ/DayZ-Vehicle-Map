@@ -1,5 +1,3 @@
-/* Exercise the real window procedure without adding a diagnostic API to the app.
-   A small empty map keeps this test independent of map decoding and disk state. */
 #define wWinMain dvm_application_entry
 #include "../src/main.c"
 #undef wWinMain
@@ -132,7 +130,6 @@ int main(void)
                    "resize paints are capped and the final size is rendered", &failures);
     }
 
-    /* Queue a change immediately after a frame, then minimize before its timer. */
     request_viewport_frame(&app);
     force_paint(&app, &stats);
     request_viewport_frame(&app);
@@ -167,7 +164,6 @@ int main(void)
     test_check(stdout, stats.minimum_ms >= 40.0,
                "all rendered frames are at least 40 ms apart (maximum 25 FPS)", &failures);
 
-    /* The test must never save marker state. Child destruction still cleans timers. */
     SetWindowLongPtrW(window, GWLP_USERDATA, 0);
     DestroyWindow(window);
     if (app.ui_font) DeleteObject(app.ui_font);
