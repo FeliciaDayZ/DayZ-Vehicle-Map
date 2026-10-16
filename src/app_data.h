@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <windows.h>
 
-#define DVM_MAP_COUNT 7
+#define DVM_MAP_COUNT 8
 #define DVM_VEHICLE_TYPE_COUNT 9
 
 typedef enum MarkerColorState {

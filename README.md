@@ -5,6 +5,9 @@ vehicle spawn locations across several DayZ maps. It runs completely offline
 and combines satellite map images, vector road overlays, and map-specific
 vehicle spawn data in one responsive desktop interface.
 
+Latest update (2026-10-16): **Nasdara from DayZ: Badlands is now supported**, with
+a calibrated 4096 x 4096 satellite map, road overlays, and 435 vehicle markers.
+
 See [Patch notes](CHANGELOG.md) for recent updates.
 
 ## Supported maps
@@ -16,6 +19,7 @@ See [Patch notes](CHANGELOG.md) for recent updates.
 - Deer Isle
 - Bitterroot
 - Banov
+- Nasdara (Badlands / `dayzOffline.nasdara`)
 
 ## Features
 
@@ -74,6 +78,7 @@ Expensive frames can reduce the frame rate below 25 FPS; the app leaves at least
 | Deer Isle | 190 |
 | Bitterroot | 99 |
 | Banov | 239 |
+| Nasdara | 435 |
 
 Vehicle filters include the supported cars, trucks, boats, Jana 50 mopeds, and
 Bitrak 682 motorbikes present in each map's source data.
@@ -120,10 +125,33 @@ data provenance and regeneration; they are not required during normal use.
 - Vanilla Chernarus, Livonia, and Sakhal vehicle positions come from DayZ
   Server Experimental mission data.
 - Namalsk, Deer Isle, Bitterroot, and Banov use their respective mission data.
-- Satellite map imagery was assembled from iZurvive map tiles.
+- Nasdara vehicle positions come from the installed Badlands central economy PBO.
+- Satellite map imagery was assembled from iZurvive map tiles, except Nasdara,
+  which is assembled directly from the installed terrain's satellite textures.
 - Chernarus and Livonia road geometry was derived from Survivorm route data.
 - Community-map road geometry was exported from the corresponding terrain WRP
-  data; Sakhal roads were traced from high-resolution XAM topographic tiles.
+  data; Sakhal and Nasdara roads were traced from high-resolution
+  [XAM topographic tiles](https://dayz.xam.nu/nasdara). Traced roads are approximate.
 
 Runtime CSV and road files are included, so DayZ Server and workshop maps do
 not need to remain installed.
+
+### Regenerating Nasdara
+
+`tools/build_nasdara_map.py` requires Python with Pillow and DayZ Tools. It reads
+the installed PBOs, verifies the terrain extent and texture calibration, assembles
+the 4096 x 4096 image, and retains the source vehicle XML in `data/source/nasdara`.
+Adjust these paths to your installation:
+
+```powershell
+python tools/build_nasdara_map.py --addons 'G:\SteamLibrary\steamapps\common\DayZ\nasdara\addons' --dayz-tools 'G:\SteamLibrary\steamapps\common\DayZ Experimental Tools' --temp 'C:\hypevidia\vehiclemap-temp\nasdara'
+./tools/generate_vehicle_data.ps1 -MapIds nasdara
+Push-Location tools/sakhal_road_trace
+go run . -map nasdara -version 26.10.15 -world 16384 -cache 'C:\hypevidia\vehiclemap-temp\nasdara\road_tiles' ../../data/roads/nasdara.roads
+Pop-Location
+```
+
+Nasdara has 231 car/truck markers and 102 possible locations for each motorbike
+type; its boat event is inactive. Both motorbike types share the same locations.
+The encrypted world archive is not needed for this workflow. Road regeneration
+uses the published XAM tiles; the application itself remains fully offline.

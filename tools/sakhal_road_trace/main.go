@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"encoding/binary"
+	"flag"
 	"fmt"
 	_ "golang.org/x/image/webp"
 	"image"
@@ -9,6 +11,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -20,10 +23,16 @@ const (
 	zoom      = 6
 	tileCount = 1 << zoom
 	mapPixels = tileSize * tileCount
-	worldSize = float32(15360)
 
 	roadAsphalt = byte(1)
 	roadDirt    = byte(2)
+)
+
+var (
+	mapID          = "sakhal"
+	tileVersion    = "1.27"
+	worldSize      = float32(15360)
+	cacheDirectory string
 )
 
 type point struct {
@@ -64,8 +73,18 @@ func classifyPixel(r16, g16, b16 uint32) byte {
 }
 
 func fetchTile(client *http.Client, tileX, tileY int) (image.Image, error) {
-	url := fmt.Sprintf("https://static.xam.nu/dayz/maps/sakhal/1.27/topographic/%d/%d/%d.webp",
-		zoom, tileX, tileY)
+	url := fmt.Sprintf("https://static.xam.nu/dayz/maps/%s/%s/topographic/%d/%d/%d.webp",
+		mapID, tileVersion, zoom, tileX, tileY)
+	cachePath := ""
+	if cacheDirectory != "" {
+		cachePath = filepath.Join(cacheDirectory, mapID, tileVersion,
+			fmt.Sprintf("%d_%d_%d.webp", zoom, tileX, tileY))
+		if data, err := os.ReadFile(cachePath); err == nil {
+			if img, _, err := image.Decode(bytes.NewReader(data)); err == nil {
+				return img, nil
+			}
+		}
+	}
 	var lastErr error
 	for attempt := 0; attempt < 3; attempt++ {
 		req, err := http.NewRequest(http.MethodGet, url, nil)
@@ -73,11 +92,25 @@ func fetchTile(client *http.Client, tileX, tileY int) (image.Image, error) {
 			return nil, err
 		}
 		req.Header.Set("User-Agent", "DayZVehicleMap build-time road extractor")
+		req.Header.Set("Referer", "https://dayz.xam.nu/")
 		resp, err := client.Do(req)
 		if err == nil && resp.StatusCode == http.StatusOK {
-			img, _, decodeErr := image.Decode(io.LimitReader(resp.Body, 4*1024*1024))
+			data, readErr := io.ReadAll(io.LimitReader(resp.Body, 4*1024*1024))
 			resp.Body.Close()
+			if readErr != nil {
+				lastErr = readErr
+				continue
+			}
+			img, _, decodeErr := image.Decode(bytes.NewReader(data))
 			if decodeErr == nil {
+				if cachePath != "" {
+					if err := os.MkdirAll(filepath.Dir(cachePath), 0755); err != nil {
+						return nil, err
+					}
+					if err := os.WriteFile(cachePath, data, 0644); err != nil {
+						return nil, err
+					}
+				}
 				return img, nil
 			}
 			lastErr = decodeErr
@@ -538,10 +571,16 @@ func writeRoadFile(path string, segments []segment) error {
 }
 
 func main() {
-	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: sakhal_road_trace OUTPUT.roads")
+	flag.StringVar(&mapID, "map", mapID, "XAM terrain ID")
+	flag.StringVar(&tileVersion, "version", tileVersion, "XAM tile version")
+	world := flag.Float64("world", float64(worldSize), "world size in metres")
+	flag.StringVar(&cacheDirectory, "cache", "", "optional downloaded tile directory")
+	flag.Parse()
+	if flag.NArg() != 1 || *world <= 0 || math.IsNaN(*world) || math.IsInf(*world, 0) || *world > math.MaxFloat32 {
+		fmt.Fprintln(os.Stderr, "usage: sakhal_road_trace [-map ID -version VERSION -world METRES -cache DIR] OUTPUT.roads")
 		os.Exit(2)
 	}
+	worldSize = float32(*world)
 	mask, err := downloadMask()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -554,9 +593,9 @@ func main() {
 	removed := removeSmallComponents(mask, active)
 	fmt.Printf("removed %d small map-symbol component pixels\n", removed)
 	segments := traceSegments(mask, active)
-	if err = writeRoadFile(os.Args[1], segments); err != nil {
+	if err = writeRoadFile(flag.Arg(0), segments); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	fmt.Printf("wrote %d Sakhal road segments to %s\n", len(segments), os.Args[1])
+	fmt.Printf("wrote %d %s road segments to %s\n", len(segments), mapID, flag.Arg(0))
 }

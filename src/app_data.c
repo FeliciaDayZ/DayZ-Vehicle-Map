@@ -65,6 +65,12 @@ static const MapInfo g_maps[DVM_MAP_COUNT] = {
         L"data\\roads\\banov.roads",
         L"data\\spawns\\banov.csv", 15360.0, 2048u, 2048u,
         { 29u, 34u, 14u, 32u, 31u, 52u, 47u, 0u, 0u }
+    },
+    {
+        "nasdara", L"Nasdara", L"data\\maps\\nasdara.png",
+        L"data\\roads\\nasdara.roads",
+        L"data\\spawns\\nasdara.csv", 16384.0, 4096u, 4096u,
+        { 47u, 52u, 21u, 44u, 40u, 27u, 0u, 102u, 102u }
     }
 };
 

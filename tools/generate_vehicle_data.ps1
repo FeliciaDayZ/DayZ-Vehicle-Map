@@ -1,6 +1,7 @@
 param(
     [string]$ServerMissionRoot = 'C:\Program Files (x86)\Steam\steamapps\common\DayZServer\mpmissions',
-    [string]$AdditionalSourceRoot = ''
+    [string]$AdditionalSourceRoot = '',
+    [string[]]$MapIds = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -121,8 +122,29 @@ $maps = @(
             VehicleMotorbike01 = @()
             VehicleMotorbike02 = @()
         }
+    },
+    @{
+        Id = 'nasdara'; WorldSize = 16384
+        Spawn = Join-Path $AdditionalSourceRoot 'nasdara\cfgeventspawns.xml'
+        Events = Join-Path $AdditionalSourceRoot 'nasdara\events.xml'
+        SourceEvents = @{
+            VehicleCivilianSedan = @('VehicleCivilianSedan')
+            VehicleHatchback02 = @('VehicleHatchback02')
+            VehicleOffroad02 = @('VehicleOffroad02')
+            VehicleOffroadHatchback = @('VehicleOffroadHatchback')
+            VehicleSedan02 = @('VehicleSedan02')
+            VehicleTruck01 = @('VehicleTruck01')
+            VehicleBoat = @()
+            VehicleMotorbike01 = @('VehicleMotorbike')
+            VehicleMotorbike02 = @('VehicleMotorbike')
+        }
     }
 )
+
+foreach ($id in $MapIds) {
+    if ($id -notin $maps.Id) { throw "Unknown map ID: $id" }
+}
+if ($MapIds.Count) { $maps = @($maps | Where-Object { $_.Id -in $MapIds }) }
 
 New-Item -ItemType Directory -Force -Path $outputRoot | Out-Null
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)

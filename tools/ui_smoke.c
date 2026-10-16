@@ -1,3 +1,5 @@
+#include "../src/app_data.h"
+
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -192,6 +194,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous_instance,
     wchar_t report_path[1024];
     wchar_t capture_path[1024];
     wchar_t livonia_capture_path[1024];
+    wchar_t nasdara_capture_path[1024];
     wchar_t marker_path[1024];
     wchar_t state_path[1024];
     wchar_t state_backup_path[1024];
@@ -242,6 +245,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous_instance,
     _snwprintf(livonia_capture_path,
                sizeof(livonia_capture_path) / sizeof(livonia_capture_path[0]),
                L"%ls\\ui_smoke_livonia.bmp", project_directory);
+    _snwprintf(nasdara_capture_path,
+               sizeof(nasdara_capture_path) / sizeof(nasdara_capture_path[0]),
+               L"%ls\\build\\ui_smoke_nasdara.bmp", project_directory);
     _snwprintf(marker_path, sizeof(marker_path) / sizeof(marker_path[0]),
                L"%ls\\data\\marker.png", project_directory);
     marker_present = GetFileAttributesW(marker_path) != INVALID_FILE_ATTRIBUTES;
@@ -318,9 +324,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous_instance,
         fprintf(report, "FAIL: one or more required controls are missing\n");
         ++failures;
     }
-    if (combo && SendMessageW(combo, CB_GETCOUNT, 0, 0) == 7)
-        fprintf(report, "PASS: map selector contains all seven supported maps\n");
-    else { fprintf(report, "FAIL: map selector does not contain seven maps\n"); ++failures; }
+    if (combo && SendMessageW(combo, CB_GETCOUNT, 0, 0) == DVM_MAP_COUNT)
+        fprintf(report, "PASS: map selector contains all %d supported maps\n", DVM_MAP_COUNT);
+    else { fprintf(report, "FAIL: map selector count\n"); ++failures; }
     if (status) {
         status_before[0] = L'\0';
         GetWindowTextW(status, status_before,
@@ -617,15 +623,17 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous_instance,
     else { fprintf(report, "FAIL: Livonia window capture\n"); ++failures; }
     if (combo && viewport && status && first_filter) {
         static const wchar_t *new_map_names[] = {
-            L"Sakhal", L"Namalsk", L"Deer Isle", L"Bitterroot", L"Banov"
+            L"Sakhal", L"Namalsk", L"Deer Isle", L"Bitterroot", L"Banov", L"Nasdara"
         };
-        static const unsigned int new_map_totals[] = { 431u, 554u, 190u, 99u, 239u };
+        static const unsigned int new_map_totals[] = { 431u, 554u, 190u, 99u, 239u, 435u };
         int selection;
-        for (selection = 2; selection < 7; ++selection) {
+        for (selection = 2; selection < DVM_MAP_COUNT; ++selection) {
             wchar_t expected[96];
             SendMessageW(combo, CB_SETCURSEL, (WPARAM)selection, 0);
             SendMessageW(main_window, WM_COMMAND,
                          MAKEWPARAM(ID_MAP_COMBO, CBN_SELCHANGE), (LPARAM)combo);
+
+            Sleep(100);
             RedrawWindow(viewport, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
             GetWindowTextW(status, status_after,
                            sizeof(status_after) / sizeof(status_after[0]));
@@ -642,9 +650,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous_instance,
                         new_map_names[selection - 2]);
                 ++failures;
             }
-            if (selection == 2) {
+            if (selection == 2 || selection == 7) {
                 wchar_t jana_text[128];
                 wchar_t bitrak_text[128];
+                const wchar_t *bike_count = selection == 2 ? L"70/70" : L"102/102";
                 HWND jana_filter = GetDlgItem(main_window, ID_TYPE_CHECK_BASE + 7);
                 HWND bitrak_filter = GetDlgItem(main_window, ID_TYPE_CHECK_BASE + 8);
                 GetWindowTextW(jana_filter, jana_text,
@@ -652,9 +661,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous_instance,
                 GetWindowTextW(bitrak_filter, bitrak_text,
                                sizeof(bitrak_text) / sizeof(bitrak_text[0]));
                 if (IsWindowVisible(jana_filter) && IsWindowVisible(bitrak_filter) &&
-                    wcsstr(jana_text, L"70/70") && wcsstr(bitrak_text, L"70/70"))
-                    fprintf(report, "PASS: Sakhal exposes both two-wheeled spawn sets\n");
-                else { fprintf(report, "FAIL: Sakhal two-wheeled spawn sets\n"); ++failures; }
+                    wcsstr(jana_text, bike_count) && wcsstr(bitrak_text, bike_count))
+                    fprintf(report, "PASS: %ls exposes both two-wheeled spawn sets\n",
+                            new_map_names[selection - 2]);
+                else { fprintf(report, "FAIL: two-wheeled spawn sets\n"); ++failures; }
+            }
+            if (selection == 7) {
+                if (!IsWindowVisible(GetDlgItem(main_window, ID_TYPE_CHECK_BASE + 6)))
+                    fprintf(report, "PASS: Nasdara hides inactive boat filter\n");
+                else { fprintf(report, "FAIL: Nasdara boat filter\n"); ++failures; }
+                if (write_window_bmp(main_window, nasdara_capture_path))
+                    fprintf(report, "PASS: captured rendered Nasdara view\n");
+                else { fprintf(report, "FAIL: Nasdara window capture\n"); ++failures; }
             }
             SendMessageW(first_filter, BM_CLICK, 0, 0);
             if (SendMessageW(first_filter, BM_GETCHECK, 0, 0) == BST_UNCHECKED)

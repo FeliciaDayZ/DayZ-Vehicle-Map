@@ -1,5 +1,14 @@
 # Patch notes
 
+## 2026-10-16
+
+### Maps
+
+- Added Nasdara from DayZ: Badlands (`dayzOffline.nasdara`) with a calibrated
+  4096 x 4096 satellite map and paved/dirt road overlays.
+- Added 435 vehicle spawn markers, including Jana 50 and Bitrak 682 locations,
+  with independent filters and saved marker state.
+
 ## 2026-09-26
 
 ### Performance

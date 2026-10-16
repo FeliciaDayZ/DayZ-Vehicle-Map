@@ -1370,9 +1370,11 @@ static int run_self_test(App *app)
     {
         BOOL official_motorbike_sets_valid = TRUE;
         int official_map;
-        for (official_map = 0; official_map < 3; ++official_map) {
+        for (official_map = 0; official_map < DVM_MAP_COUNT; ++official_map) {
             SpawnDataset *dataset = &app->datasets[official_map];
             size_t index;
+            if (official_map >= 3 && strcmp(dvm_map_info(official_map)->id, "nasdara") != 0)
+                continue;
             if (dataset->type_counts[7] == 0u ||
                 dataset->type_counts[7] != dataset->type_counts[8]) {
                 official_motorbike_sets_valid = FALSE;
