@@ -490,6 +490,10 @@ func appendChainSegments(result []segment, points []point, kind byte) []segment 
 	metersPerPixel := worldSize / float32(mapPixels)
 	for i := 1; i < len(points); i++ {
 		a, b := points[i-1], points[i]
+		// Tiny raster loops can simplify to a repeated point, not a road.
+		if a == b {
+			continue
+		}
 		result = append(result, segment{
 			(float32(a.x) + .5) * metersPerPixel,
 			worldSize - (float32(a.y)+.5)*metersPerPixel,
@@ -586,12 +590,16 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	filled := fillSmallHoles(mask)
+	fmt.Printf("filled %d small road-fill hole pixels\n", filled)
 	active := foregroundIndices(mask)
 	sort.Ints(active)
 	fmt.Printf("classified %d foreground pixels\n", len(active))
 	thinMask(mask, active)
 	removed := removeSmallComponents(mask, active)
 	fmt.Printf("removed %d small map-symbol component pixels\n", removed)
+	pruned := pruneShortSpurs(mask, active, 8.0)
+	fmt.Printf("pruned %d short raster-spur pixels\n", pruned)
 	segments := traceSegments(mask, active)
 	if err = writeRoadFile(flag.Arg(0), segments); err != nil {
 		fmt.Fprintln(os.Stderr, err)

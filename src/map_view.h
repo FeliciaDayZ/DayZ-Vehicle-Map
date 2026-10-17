@@ -2,6 +2,7 @@
 #define DAYZ_VEHICLE_MAP_MAP_VIEW_H
 
 #include "app_data.h"
+#include "map_objects.h"
 
 #include <gdiplus/gdiplus.h>
 #include <stddef.h>
@@ -20,6 +21,7 @@ typedef struct MapView {
     GpImage *image;
     GpImage *overview_image;
     MapRoadSegment *road_segments;
+    MapObjectLayer *objects;
     UINT road_segment_count;
     UINT asphalt_segment_count;
     UINT dirt_segment_count;

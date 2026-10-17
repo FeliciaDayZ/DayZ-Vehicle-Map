@@ -259,7 +259,9 @@ BOOL dvm_map_view_load(MapView *view, const wchar_t *base_directory,
         dvm_map_view_destroy(view);
         return FALSE;
     }
-    if (!load_road_paths(view, base_directory, error, error_capacity)) {
+    if (!load_road_paths(view, base_directory, error, error_capacity) ||
+        !dvm_map_objects_load(&view->objects, base_directory, map->object_relative_path,
+                              map->world_size, error, error_capacity)) {
         dvm_map_view_destroy(view);
         return FALSE;
     }
@@ -272,6 +274,7 @@ BOOL dvm_map_view_load(MapView *view, const wchar_t *base_directory,
 void dvm_map_view_destroy(MapView *view)
 {
     if (!view) return;
+    dvm_map_objects_destroy(view->objects);
     if (view->road_segments)
         HeapFree(GetProcessHeap(), 0, view->road_segments);
     if (view->overview_image) GdipDisposeImage(view->overview_image);
@@ -512,7 +515,7 @@ void dvm_map_view_draw(const MapView *view, HDC dc, const RECT *client,
         GdipSetCompositingMode(graphics, CompositingModeSourceCopy);
         GdipSetCompositingQuality(graphics, CompositingQualityHighSpeed);
         GdipSetInterpolationMode(graphics, draft_quality
-            ? InterpolationModeNearestNeighbor : InterpolationModeBilinear);
+            ? InterpolationModeNearestNeighbor : InterpolationModeHighQualityBilinear);
         GdipSetPixelOffsetMode(graphics, PixelOffsetModeHalf);
         GdipDrawImageRectRect(graphics, raster,
             (REAL)destination_left, (REAL)destination_top,
@@ -521,6 +524,10 @@ void dvm_map_view_draw(const MapView *view, HDC dc, const RECT *client,
             source_left, source_top, source_width, source_height,
             UnitPixel, NULL, NULL, NULL);
         draw_road_paths(view, graphics, draft_quality);
+        dvm_map_objects_draw(view->objects, graphics,
+            view->zoom * view->image_width / view->map->world_size,
+            view->pan_x, view->pan_y, view->client_width, view->client_height,
+            draft_quality);
         GdipDeleteGraphics(graphics);
     }
 }

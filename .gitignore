@@ -6,3 +6,4 @@ ui_smoke.bmp
 ui_smoke_livonia.bmp
 *.new.exe
 *.res.o
+__pycache__/

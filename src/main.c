@@ -35,7 +35,8 @@
 #define ID_ZOOM_QUALITY_TIMER 2u
 #define ZOOM_SETTLE_INTERVAL_MS 120u
 #define ID_VIEWPORT_FRAME_TIMER 3u
-#define VIEWPORT_FRAME_INTERVAL_MS 40u
+#define VIEWPORT_FRAME_INTERVAL_MS (1000.0 / 35.0)
+#define WM_OBJECT_TILES_READY (WM_APP + 1u)
 
 typedef struct App {
     HINSTANCE instance;
@@ -444,6 +445,7 @@ static void schedule_viewport_frame(App *app)
     UINT delay;
     if (!app || !app->viewport) return;
     if (!IsWindowVisible(app->viewport) || IsIconic(app->main_window)) {
+        dvm_map_objects_set_async(app->views[app->active_map].objects, NULL, 0);
         cancel_viewport_frame(app);
         return;
     }
@@ -497,6 +499,8 @@ static BOOL ensure_viewport_buffer(App *app, HDC target, int width, int height)
 
 static void draw_viewport_content(App *app, HDC target, const RECT *client)
 {
+    dvm_map_objects_set_async(app->views[app->active_map].objects,
+                              app->viewport, WM_OBJECT_TILES_READY);
     dvm_map_view_draw(&app->views[app->active_map], target,
                       client, app->dragging || app->zooming);
     draw_markers(app, target, client);
@@ -760,6 +764,7 @@ static void switch_map(App *app, int map_index)
 {
     if (!app || map_index < 0 || map_index >= DVM_MAP_COUNT ||
         map_index == app->active_map) return;
+    dvm_map_objects_set_async(app->views[app->active_map].objects, NULL, 0);
     app->active_map = map_index;
     app->cursor_world_valid = FALSE;
     update_controls(app);
@@ -826,6 +831,7 @@ static LRESULT CALLBACK main_window_proc(HWND window, UINT message,
     case WM_SIZE:
         if (app) {
             if (w_param == SIZE_MINIMIZED) {
+                dvm_map_objects_set_async(app->views[app->active_map].objects, NULL, 0);
                 cancel_viewport_frame(app);
                 KillTimer(app->viewport, ID_ZOOM_QUALITY_TIMER);
                 app->zooming = FALSE;
@@ -838,7 +844,10 @@ static LRESULT CALLBACK main_window_proc(HWND window, UINT message,
     case WM_SHOWWINDOW:
         if (app && app->viewport) {
             if (w_param) request_viewport_frame(app);
-            else cancel_viewport_frame(app);
+            else {
+                dvm_map_objects_set_async(app->views[app->active_map].objects, NULL, 0);
+                cancel_viewport_frame(app);
+            }
         }
         return 0;
     case WM_COMMAND:
@@ -960,9 +969,16 @@ static LRESULT CALLBACK viewport_proc(HWND window, UINT message,
     case WM_SHOWWINDOW:
         if (app) {
             if (w_param) request_viewport_frame(app);
-            else cancel_viewport_frame(app);
+            else {
+                dvm_map_objects_set_async(app->views[app->active_map].objects, NULL, 0);
+                cancel_viewport_frame(app);
+            }
         }
         break;
+    case WM_OBJECT_TILES_READY:
+        if (app && (MapObjectLayer *)l_param == app->views[app->active_map].objects)
+            request_viewport_frame(app);
+        return 0;
     case WM_PAINT:
         if (app) paint_viewport(app, window);
         else {
@@ -1118,6 +1134,9 @@ static LRESULT CALLBACK viewport_proc(HWND window, UINT message,
         break;
     case WM_DESTROY:
         if (app) {
+            int i;
+            for (i = 0; i < DVM_MAP_COUNT; ++i)
+                dvm_map_objects_set_async(app->views[i].objects, NULL, 0);
             cancel_viewport_frame(app);
             KillTimer(window, ID_ZOOM_QUALITY_TIMER);
         }
@@ -1365,6 +1384,12 @@ static int run_self_test(App *app)
                    app->views[map_index].asphalt_segment_count > 0u &&
                    app->views[map_index].dirt_segment_count > 0u,
                    check_name, &failures);
+        if (map->object_relative_path) {
+            _snprintf(check_name, sizeof(check_name), "%s structure geometry and model pictures", map->id);
+            check_name[sizeof(check_name) - 1] = '\0';
+            test_check(report, dvm_map_objects_count(app->views[map_index].objects) > 0u,
+                       check_name, &failures);
+        }
         dvm_map_view_resize(&app->views[map_index], 1000, 760);
     }
     {

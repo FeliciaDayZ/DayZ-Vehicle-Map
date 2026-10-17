@@ -28,49 +28,50 @@ static const MapInfo g_maps[DVM_MAP_COUNT] = {
         "chernarusplus", L"Chernarus", L"data\\maps\\chernarusplus.png",
         L"data\\roads\\chernarusplus.roads",
         L"data\\spawns\\chernarusplus.csv", 15360.0, 2048u, 2048u,
-        { 55u, 56u, 21u, 81u, 59u, 111u, 72u, 97u, 97u }
+        { 55u, 56u, 21u, 81u, 59u, 111u, 72u, 97u, 97u }, NULL
     },
     {
         "enoch", L"Livonia", L"data\\maps\\enoch.png",
         L"data\\roads\\enoch.roads",
         L"data\\spawns\\enoch.csv", 12800.0, 4096u, 4096u,
-        { 40u, 39u, 21u, 40u, 30u, 50u, 17u, 35u, 35u }
+        { 40u, 39u, 21u, 40u, 30u, 50u, 17u, 35u, 35u }, NULL
     },
     {
         "sakhal", L"Sakhal", L"data\\maps\\sakhal.png",
         L"data\\roads\\sakhal.roads",
         L"data\\spawns\\sakhal.csv", 15360.0, 2048u, 2048u,
-        { 27u, 60u, 0u, 35u, 47u, 25u, 97u, 70u, 70u }
+        { 27u, 60u, 0u, 35u, 47u, 25u, 97u, 70u, 70u }, NULL
     },
     {
         "namalsk", L"Namalsk", L"data\\maps\\namalsk.png",
         L"data\\roads\\namalsk.roads",
         L"data\\spawns\\namalsk.csv", 12800.0, 2048u, 2048u,
-        { 125u, 125u, 8u, 125u, 125u, 12u, 34u, 0u, 0u }
+        { 125u, 125u, 8u, 125u, 125u, 12u, 34u, 0u, 0u }, NULL
     },
     {
         "deerisle", L"Deer Isle", L"data\\maps\\deerisle.png",
         L"data\\roads\\deerisle.roads",
         L"data\\spawns\\deerisle.csv", 16384.0, 2048u, 2048u,
-        { 33u, 38u, 0u, 69u, 39u, 11u, 0u, 0u, 0u }
+        { 33u, 38u, 0u, 69u, 39u, 11u, 0u, 0u, 0u }, NULL
     },
     {
         "bitterroot", L"Bitterroot", L"data\\maps\\bitterroot.png",
         L"data\\roads\\bitterroot.roads",
         L"data\\spawns\\bitterroot.csv", 12288.0, 2048u, 2048u,
-        { 20u, 20u, 10u, 20u, 20u, 9u, 0u, 0u, 0u }
+        { 20u, 20u, 10u, 20u, 20u, 9u, 0u, 0u, 0u }, NULL
     },
     {
         "banov", L"Banov", L"data\\maps\\banov.png",
         L"data\\roads\\banov.roads",
         L"data\\spawns\\banov.csv", 15360.0, 2048u, 2048u,
-        { 29u, 34u, 14u, 32u, 31u, 52u, 47u, 0u, 0u }
+        { 29u, 34u, 14u, 32u, 31u, 52u, 47u, 0u, 0u }, NULL
     },
     {
         "nasdara", L"Nasdara", L"data\\maps\\nasdara.png",
         L"data\\roads\\nasdara.roads",
         L"data\\spawns\\nasdara.csv", 16384.0, 4096u, 4096u,
-        { 47u, 52u, 21u, 44u, 40u, 27u, 0u, 102u, 102u }
+        { 47u, 52u, 21u, 44u, 40u, 27u, 0u, 102u, 102u },
+        L"data\\objects\\nasdara\\nasdara.objects"
     }
 };
 

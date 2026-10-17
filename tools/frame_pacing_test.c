@@ -160,9 +160,44 @@ int main(void)
     test_check(stdout, stats.frames == before && !app.viewport_frame_pending &&
                !app.status_update_pending,
                "idle window stops rendering and update timers", &failures);
+    {
+        wchar_t base[4096], error[512];
+        RECT client;
+        MapObjectCacheStats cache;
+        BOOL loaded = GetCurrentDirectoryW(4096, base) &&
+            dvm_map_view_load(&app.views[7], base, 7, error, 512);
+        test_check(stdout, loaded, "real Nasdara workload loads", &failures);
+        if (loaded) {
+            GetClientRect(app.viewport, &client);
+            dvm_map_view_resize(&app.views[7], client.right, client.bottom);
+            app.views[7].zoom = 10.5;
+            app.views[7].pan_x = client.right * 0.5 - 10104.0 / 4.0 * 10.5;
+            app.views[7].pan_y = client.bottom * 0.5 - (16384.0 - 8228.0) / 4.0 * 10.5;
+            switch_map(&app, 7);
+            settle(&app, &stats, 1200);
+            dvm_map_objects_cache_stats(app.views[7].objects, &cache);
+            test_check(stdout, cache.rendered_tiles > 0 && !cache.pending_tiles &&
+                !app.viewport_dirty && !app.viewport_frame_pending,
+                "background tiles notify the viewport and finish without polling timers", &failures);
+            before = stats.frames;
+            settle(&app, &stats, 200);
+            test_check(stdout, stats.frames == before,
+                "real structure layer stops repainting when idle", &failures);
+            // Queue new detail, then switch before the worker completes it.
+            app.views[7].zoom *= 1.22;
+            app.viewport_frame_finished.QuadPart = 0;
+            request_viewport_frame(&app);
+            force_paint(&app, &stats);
+            switch_map(&app, 0);
+            settle(&app, &stats, 200);
+            dvm_map_objects_cache_stats(app.views[7].objects, &cache);
+            test_check(stdout, !cache.pending_tiles && !app.viewport_frame_pending,
+                "switching maps cancels queued detail and ignores stale completion messages", &failures);
+        }
+    }
     printf("INFO: %u frames; shortest interval %.3f ms\n", stats.frames, stats.minimum_ms);
-    test_check(stdout, stats.minimum_ms >= 40.0,
-               "all rendered frames are at least 40 ms apart (maximum 25 FPS)", &failures);
+    test_check(stdout, stats.minimum_ms >= 1000.0 / 35.0,
+               "all rendered frames are at least 1/35 second apart (maximum 35 FPS)", &failures);
 
     SetWindowLongPtrW(window, GWLP_USERDATA, 0);
     DestroyWindow(window);

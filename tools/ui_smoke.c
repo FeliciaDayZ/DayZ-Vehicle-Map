@@ -112,8 +112,17 @@ static BOOL marker_region_has_color(HWND viewport, int center_x, int center_y,
 static void send_marker_button(HWND viewport, UINT down_message, UINT up_message,
                                WPARAM button_flag, int x, int y)
 {
+    POINT saved_cursor;
+    POINT target = { x, y };
+    BOOL moved = FALSE;
+    // SetCapture can queue a real WM_MOUSEMOVE between the two sent messages.
+    // Keep that cursor at the test point so a click cannot turn into a drag.
+    if (down_message == WM_LBUTTONDOWN && GetCursorPos(&saved_cursor) &&
+        ClientToScreen(viewport, &target))
+        moved = SetCursorPos(target.x, target.y);
     SendMessageW(viewport, down_message, button_flag, MAKELPARAM(x, y));
     SendMessageW(viewport, up_message, 0, MAKELPARAM(x, y));
+    if (moved) SetCursorPos(saved_cursor.x, saved_cursor.y);
     RedrawWindow(viewport, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
 }
 
@@ -224,6 +233,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous_instance,
     (void)previous_instance;
     (void)command_line;
     (void)show_command;
+    // Match the application's DPI awareness: mouse-wheel coordinates are in
+    // screen pixels, and a virtualized window rectangle shifts the zoom anchor.
+    if (!SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2))
+        SetProcessDPIAware();
     ZeroMemory(&process, sizeof(process));
     if (!GetModuleFileNameW(NULL, module_path,
                             sizeof(module_path) / sizeof(module_path[0]))) return 3;
@@ -404,10 +417,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous_instance,
         pan_y = ((double)client.bottom - draw_size) * 0.5;
         livonia_marker_fit_x = (int)(pan_x + 6272.36 / 12800.0 * draw_size + 0.5);
         livonia_marker_fit_y = (int)(pan_y + (1.0 - 6824.92 / 12800.0) * draw_size + 0.5);
-        SendMessageW(viewport, WM_LBUTTONDOWN, MK_LBUTTON,
-                     MAKELPARAM(livonia_marker_fit_x, livonia_marker_fit_y));
-        SendMessageW(viewport, WM_LBUTTONUP, 0,
-                     MAKELPARAM(livonia_marker_fit_x, livonia_marker_fit_y));
+        send_marker_button(viewport, WM_LBUTTONDOWN, WM_LBUTTONUP, MK_LBUTTON,
+                           livonia_marker_fit_x, livonia_marker_fit_y);
         GetWindowTextW(status, status_after,
                        sizeof(status_after) / sizeof(status_after[0]));
         if (wcsstr(status_after, L"Remaining: 305 of 307"))
@@ -489,15 +500,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous_instance,
                 int marker_y = (int)((double)center_y +
                     ((double)livonia_marker_fit_y - (double)center_y) * zoom_factor +
                     40.0 + 0.5);
-                SendMessageW(viewport, WM_LBUTTONDOWN, MK_LBUTTON,
-                             MAKELPARAM(marker_x, marker_y));
-                SendMessageW(viewport, WM_LBUTTONUP, 0,
-                             MAKELPARAM(marker_x, marker_y));
+                send_marker_button(viewport, WM_LBUTTONDOWN, WM_LBUTTONUP, MK_LBUTTON,
+                                   marker_x, marker_y);
                 GetWindowTextW(status, status_after,
                                sizeof(status_after) / sizeof(status_after[0]));
                 if (wcsstr(status_after, L"Remaining: 305 of 307"))
                     fprintf(report, "PASS: left click after zoom and pan hid exactly one marker\n");
-                else { fprintf(report, "FAIL: marker click after zoom and pan\n"); ++failures; }
+                else {
+                    fprintf(report, "FAIL: marker click after zoom and pan (client=%ldx%ld, fit=%d,%d, target=%d,%d, status=%ls)\n",
+                            client.right, client.bottom, livonia_marker_fit_x, livonia_marker_fit_y,
+                            marker_x, marker_y, status_after);
+                    ++failures;
+                }
                 SendMessageW(GetDlgItem(main_window, ID_TYPE_RESTORE_BASE + 5),
                              BM_CLICK, 0, 0);
             }

@@ -45,6 +45,7 @@ typedef struct MapInfo {
     UINT expected_image_width;
     UINT expected_image_height;
     size_t expected_type_counts[DVM_VEHICLE_TYPE_COUNT];
+    const wchar_t *object_relative_path;
 } MapInfo;
 
 const MapInfo *dvm_map_info(int map_index);

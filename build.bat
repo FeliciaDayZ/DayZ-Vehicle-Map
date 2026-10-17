@@ -32,7 +32,7 @@ if errorlevel 1 goto :failed
 echo Compiling DayZVehicleMap...
 "%GCC%" -std=c17 -O2 -Wall -Wextra -Wpedantic -Wformat=2 -Wstrict-prototypes ^
   -DUNICODE -D_UNICODE -municode -mwindows ^
-  src\main.c src\util.c src\app_data.c src\map_view.c src\state.c "%RESOBJ%" ^
+  src\main.c src\util.c src\app_data.c src\map_view.c src\map_objects.c src\state.c "%RESOBJ%" ^
   -o "%NEW%" -lgdiplus -lcomctl32 -lgdi32 -luser32 -lkernel32
 if errorlevel 1 goto :failed
 

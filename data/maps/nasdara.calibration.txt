@@ -16,9 +16,16 @@ Material P_000-000_L05_L09_L10_L16.rvmat pos: {0.125,32.125,0}
 Material P_001-000_L05_L09_L10_L16.rvmat pos: {-0.625,32.125,0}
 Material P_000-001_L05_L09_L10_L16.rvmat pos: {0.125,31.375,0}
 
-Road source: XAM Nasdara topographic tiles, version 26.10.15, zoom 6.
-https://static.xam.nu/dayz/maps/nasdara/26.10.15/topographic/{z}/{x}/{y}.webp
-https://dayz.xam.nu/nasdara
-Roads are approximate centre lines traced at 1 metre per source pixel using
-tools/sakhal_road_trace. Raster simplification tolerance is 2 pixels.
-The installed worlds_nasdara.ebo is encrypted; these are not exported WRP vectors.
+Road and structure source: https://dayzed.gg/map/nasdara
+Buildings version 1792185360; roads version 1792185361.
+Source hashes and model names: data/objects/nasdara/source.json
+Road polylines are delta-coded in decimetres in the published source.
+Structure outlines are in model metres; placement rows supply X, Z, angle,
+and scale. Static placement chunks use decimetres, tenths of a degree, and
+thousandths of scale. Top-down pictures carry an affine pixel-to-model mapping.
+For model point (u,v), placement angle a and instance scale s:
+  world_x = x + s*cos(a)*u - s*sin(a)*v
+  world_z = z + s*sin(a)*u + s*cos(a)*v
+The same north-up world-to-image transform above is then used for all layers.
+Source geometry is derived from DayZ models and terrain by DayZed.GG.
+Regenerate with tools/build_nasdara_objects.py; no WRP decryption is required.
